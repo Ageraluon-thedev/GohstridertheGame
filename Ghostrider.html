@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ghostrider</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: royalblue;
+        }
+        #gameContainer {
+            display: flex;
+            align-items: center;
+        }
+        canvas {
+            background-color: gray;
+        }
+        #infoPanel {
+            width: 150px;
+            margin-left: 20px;
+            padding: 10px;
+            background-color: white;
+            border-radius: 10px;
+            text-align: center;
+            font-family: Arial, sans-serif;
+        }
+        #gameOverPopup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            display: none;
+            color: red; /* Game Over in Rot */
+        }
+        #restartButton {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: green;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #restartButton:hover {
+            background-color: darkgreen;
+        }
+        #tutorialPopup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <!-- Tutorial Popup -->
+    <div id="tutorialPopup">
+        <h2>Willkommen bei Ghostrider!</h2>
+        <p>Steuere dein Auto mit den Pfeiltasten nach links und rechts. Vermeide Kollisionen mit den Gegnern!</p>
+        <button id="startButton">Spiel Starten</button>
+    </div>
+
+    <div id="gameContainer">
+        <!-- Spielbereich -->
+        <canvas id="gameCanvas"></canvas>
+        
+        <!-- Info-Panel -->
+        <div id="infoPanel">
+            <h3>Zeit: <span id="timeDisplay">0</span> s</h3>
+            <h3>Leben: <span id="livesDisplay">3</span></h3>
+        </div>
+    </div>
+
+    <!-- Game Over Popup -->
+    <div id="gameOverPopup">
+        <h2>Game Over!</h2>
+        <p>Nächstes Mal geht's besser!</p>
+        <p>Du hast <span id="finalTime">0</span> Sekunden überlebt.</p>
+        <p>Hinweis: Vermeide die Gegner und hole die Bestzeit!</p>
+        <button id="restartButton">Neustart</button>
+    </div>
+
+    <script>
+        // Spiel-Variablen
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        canvas.width = 400;
+        canvas.height = 600;
+
+        let lives = 3;
+        let time = 0;
+        let gameRunning = false;
+
+        // Erstellung Spielerauto
+        const car = {
+            x: canvas.width / 2 - 25,
+            y: canvas.height - 120,
+            width: 50,
+            height: 100,
+            speed: 5
+        };
+
+        // Erstellung Gegnerautos
+        const enemyCars = [];
+        let enemySpeed = 3;
+        let enemiesInterval = 2000; // Anfangs alle 2 Sekunden ein Gegner
+        let leftPressed = false;
+        let rightPressed = false;
+
+        // Erstellung Straßenlinien
+        const roadLines = [
+            { x: canvas.width / 2 - 5, y: 0, width: 10, height: 40 },
+            { x: canvas.width / 2 - 5, y: 100, width: 10, height: 40 },
+            { x: canvas.width / 2 - 5, y: 200, width: 10, height: 40 },
+            { x: canvas.width / 2 - 5, y: 300, width: 10, height: 40 },
+            { x: canvas.width / 2 - 5, y: 400, width: 10, height: 40 },
+            { x: canvas.width / 2 - 5, y: 500, width: 10, height: 40 },
+        ];
+
+        // HUD (Zeit und Leben)
+        function updateHUD() {
+            document.getElementById("timeDisplay").textContent = time;
+            document.getElementById("livesDisplay").textContent = lives;
+        }
+
+        // Game Over anzeigen
+        function showGameOver() {
+            document.getElementById("finalTime").textContent = time;
+            document.getElementById("gameOverPopup").style.display = "block";
+            gameRunning = false;
+        }
+
+        // Neustart des Spiels
+        function restartGame() {
+            lives = 3;
+            time = 0;
+            enemyCars.length = 0;
+            enemySpeed = 3;
+            enemiesInterval = 2000;
+            clearInterval(enemyCreationInterval);
+            enemyCreationInterval = setInterval(createEnemy, enemiesInterval);
+            gameRunning = true;
+            document.getElementById("gameOverPopup").style.display = "none";
+            updateHUD();
+            gameLoop();
+        }
+
+        // Bewegung der Straßenlinien
+        function moveRoad() {
+            roadLines.forEach(line => {
+                line.y += 5;
+                if (line.y > canvas.height) {
+                    line.y = -40;
+                }
+            });
+        }
+
+        // Zeichnen der Straßenlinien
+        function drawRoad() {
+            ctx.fillStyle = "white";
+            roadLines.forEach(line => {
+                ctx.fillRect(line.x, line.y, line.width, line.height);
+            });
+        }
+
+        // Erstellen von Gegnerautos
+        function createEnemy() {
+            const lanes = [50, 150, 250, 350];
+            const numberOfEnemies = Math.floor(Math.random() * 3) + 1;
+            for (let i = 0; i < numberOfEnemies; i++) {
+                const lane = lanes[Math.floor(Math.random() * lanes.length)];
+                enemyCars.push({ x: lane, y: -100, width: 50, height: 100 });
+            }
+        }
+
+        // Bewegung der Gegnerautos
+        function moveEnemies() {
+            enemyCars.forEach((enemy, index) => {
+                enemy.y += enemySpeed;
+                if (enemy.y > canvas.height) {
+                    enemyCars.splice(index, 1);
+                }
+            });
+        }
+
+        // Kollisionserkennung
+        function checkCollisions() {
+            enemyCars.forEach((enemy, index) => {
+                if (
+                    car.x < enemy.x + enemy.width &&
+                    car.x + car.width > enemy.x &&
+                    car.y < enemy.y + enemy.height &&
+                    car.y + car.height > enemy.y
+                ) {
+                    lives--;
+                    enemyCars.splice(index, 1);
+                    updateHUD();
+                    if (lives <= 0) showGameOver();
+                }
+            });
+        }
+
+        // Zeichnen des Spielerautos
+        function drawCar() {
+            ctx.fillStyle = "red";
+            ctx.fillRect(car.x, car.y, car.width, car.height);
+        }
+
+        // Bewegung des Spielerautos
+        function moveCar() {
+            if (leftPressed && car.x > 0) car.x -= car.speed;
+            if (rightPressed && car.x < canvas.width - car.width) car.x += car.speed;
+        }
+
+        // Spiel-Loop
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawRoad();
+            moveRoad();
+            drawCar();
+            moveCar();
+            moveEnemies();
+            checkCollisions();
+            enemyCars.forEach(enemy => {
+                ctx.fillStyle = "blue";
+                ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
+            });
+            if (gameRunning) requestAnimationFrame(gameLoop);
+        }
+
+        // Schwierigkeitsgrad erhöhen
+        function increaseDifficulty() {
+            enemySpeed += 1;
+            enemiesInterval -= 200;
+            clearInterval(enemyCreationInterval);
+            enemyCreationInterval = setInterval(createEnemy, enemiesInterval);
+        }
+
+        // Start-Button Listener
+        document.getElementById("startButton").addEventListener("click", function() {
+            document.getElementById("tutorialPopup").style.display = "none";
+            gameRunning = true;
+            gameLoop();
+        });
+
+        // Neustart-Button Listener
+        document.getElementById("restartButton").addEventListener("click", restartGame);
+
+        // Steuerung des Spielerautos
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "ArrowLeft") leftPressed = true;
+            if (e.key === "ArrowRight") rightPressed = true;
+        });
+
+        document.addEventListener("keyup", (e) => {
+            if (e.key === "ArrowLeft") leftPressed = false;
+            if (e.key === "ArrowRight") rightPressed = false;
+        });
+
+        // Gegner erzeugen
+        let enemyCreationInterval = setInterval(createEnemy, enemiesInterval);
+
+        // Zeit aktualisieren
+        setInterval(() => { if (gameRunning) time++; updateHUD(); }, 1000);
+
+        // Schwierigkeit erhöhen
+        setInterval(increaseDifficulty, 20000);
+
+        updateHUD();
+    </script>
+</body>
+</html>
